@@ -78,6 +78,19 @@ app.get('/content/api/pages/fortnite-game', async (req, res) => {
     }
 });
 
+app.get('/content/api/pages/fortnite-game/*', async (req, res) => {
+    const subPath = req.params[0];
+    const url = `https://fortnitecontent-website-prod07.ol.epicgames.com/content/api/pages/fortnite-game/${subPath}`;
+    
+    try {
+        const response = await axios.get(url);
+        res.json(response.data);
+    } catch (err) {
+        console.error('获取数据失败：', err);
+        res.status(err.response?.status || 500).send(err.response?.data || '服务器错误');
+    }
+});
+
 app.listen(port, () => {
     console.log(`监听端口：${port}`);
 });

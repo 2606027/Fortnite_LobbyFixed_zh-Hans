@@ -7,8 +7,9 @@ if not exist %FLAG_FILE% (
     echo 正在设置 pip 镜像源和安装依赖...
     pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
     pip install flask
-    pip install requests
-    pip install mitmproxy
+    npm config set registry https://registry.yarnpkg.com
+    npm install axios
+    npm install express
 
     echo 已完成初次设置 > %FLAG_FILE%
 ) else (
