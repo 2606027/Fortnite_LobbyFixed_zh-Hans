@@ -1,5 +1,6 @@
 const axios = require("axios");
 const express = require('express');
+// const path = require('path');
 const app = express();
 const port = 5600;
 
@@ -12,13 +13,38 @@ async function lobby_en(retries = 30) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const response = await axios.get(url);
-            const dynamicbackgrounds = response.data.dynamicbackgrounds;
+            const data = response.data;
+            const dynamicbackgrounds = data.dynamicbackgrounds;
+            // const mediaStreamingRadio = data.mediaStreamingRadio;
+            const radioStations = data.radioStations
 
             if (typeof dynamicbackgrounds === 'object' && !Array.isArray(dynamicbackgrounds)) {
                 dynamicbackgrounds._locale = 'zh-CN';
             }
+            if (typeof mediaStreamingRadio === 'object' && !Array.isArray(mediaStreamingRadio)) {
+                mediaStreamingRadio._locale = 'zh-CN';
+            }
+            if (typeof radioStations === 'object' && !Array.isArray(radioStations)) {
+                radioStations._locale = 'zh-CN';
+                if (Array.isArray(radioStations.radioStationList.stations)) {
+                    radioStations.radioStationList.stations.forEach(station => {
+                        const titleMapping = {
+                            "Rock & Royale": "铁马广播",
+                            "Party Royale": "空降派对",
+                            "Beat Box": "流行音乐",
+                            "Power Play": "流行广播",
+                            "Radio Yonder": "远方广播",
+                            "Icon Radio": "偶像广播"
+                        };
+
+                        if (titleMapping[station.title]) {
+                            station.title = titleMapping[station.title];
+                        }
+                    })
+                }
+            }
             console.log('成功获取大厅背景信息');
-            return dynamicbackgrounds;
+            return { dynamicbackgrounds, radioStations };
         } catch (err) {
             if (err.code === 'ECONNRESET') {
                 console.warn(`连接重置，开始第${attempt}次重试...`);
@@ -43,10 +69,13 @@ async function lobby_zh(retries = 30) {
         try {
             const response = await axios.get(url, { headers });
             const data = response.data;
-            const dynamicbackgrounds = await lobby_en();
+            const { dynamicbackgrounds, radioStations } = await lobby_en();
 
             if (dynamicbackgrounds) {
                 data.dynamicbackgrounds = dynamicbackgrounds;
+            }
+            if (radioStations) {
+                data.radioStations = radioStations;
             }
             console.log('已添加API数据');
             return data;
@@ -81,16 +110,33 @@ app.get('/content/api/pages/fortnite-game', async (req, res) => {
 app.get('/content/api/pages/fortnite-game/*', async (req, res) => {
     const subPath = req.params[0];
     const url = `https://fortnitecontent-website-prod07.ol.epicgames.com/content/api/pages/fortnite-game/${subPath}`;
-    
-    try {
-        const response = await axios.get(url);
-        res.json(response.data);
-    } catch (err) {
-        console.error('获取数据失败：', err);
-        res.status(err.response?.status || 500).send(err.response?.data || '服务器错误');
+    const maxRetries = 30;
+    let attempt = 0;
+    const headers = {
+        'accept-language': 'zh-CN,zh;q=0.9'
     }
+
+    const fetchData = async () => {
+        try {
+            const response = await axios.get(url, { headers });
+            res.json(response.data);
+        } catch (err) {
+            if (attempt < maxRetries && (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT')) {
+                attempt++;
+                console.warn(`获取其他api数据失败，第${attempt}次重试...`)
+                setTimeout(fetchData, 1000);
+            } else {
+                console.error('获取其他api数据失败：', err);
+                res.status(err.response?.status || 500).send(err.response?.data || '服务器错误');
+            }
+        }
+    }
+    fetchData();
 });
 
-app.listen(port, () => {
+
+// app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+app.listen(port, '0.0.0.0', () => {
     console.log(`监听端口：${port}`);
 });
